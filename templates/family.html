@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}Family Profiles — NutriGuide{% endblock %}
+
+{% block content %}
+<div class="container-xl py-4">
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h2 class="fw-bold mb-0"><i class="bi bi-people-fill text-warning me-2"></i>Family Profiles</h2>
+      <p class="text-muted small mb-0">Manage nutrition profiles and meal plans for your family members</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+      <i class="bi bi-person-plus-fill"></i> Add Member
+    </button>
+  </div>
+
+  {% if members %}
+  <div class="row g-3" id="familyGrid">
+    {% for member in members %}
+    <div class="col-md-6 col-lg-4" id="member-card-{{ member.id }}">
+      <div class="family-card card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-start justify-content-between mb-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="family-avatar">
+                {{ {'spouse': '💑', 'child': '👶', 'parent': '👴', 'sibling': '🧑', 'other': '👤'}.get(member.relationship, '👤') }}
+              </div>
+              <div>
+                <h6 class="fw-bold mb-0">{{ member.name }}</h6>
+                <span class="badge bg-secondary-subtle text-secondary">{{ (member.relationship or 'family').title() }}</span>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-link text-danger p-0" onclick="deleteMember({{ member.id }})" title="Remove">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+
+          <div class="family-stats">
+            {% if member.age %}<div class="family-stat"><i class="bi bi-calendar text-muted"></i> {{ member.age }} yrs</div>{% endif %}
+            {% if member.gender %}<div class="family-stat"><i class="bi bi-gender-ambiguous text-muted"></i> {{ member.gender.title() }}</div>{% endif %}
+            {% if member.bmi %}<div class="family-stat"><i class="bi bi-activity text-muted"></i> BMI {{ member.bmi }}</div>{% endif %}
+            {% if member.dietary_preference %}
+            <div class="family-stat">
+              <i class="bi bi-egg-fried text-muted"></i> {{ member.dietary_preference.replace('_', ' ').title() }}
+            </div>
+            {% endif %}
+          </div>
+
+          {% if member.fitness_goal or member.medical_conditions %}
+          <div class="mt-2">
+            {% if member.fitness_goal %}
+            <span class="badge bg-primary-subtle text-primary me-1">{{ member.fitness_goal.replace('_', ' ').title() }}</span>
+            {% endif %}
+            {% if member.allergies %}
+            <span class="badge bg-danger-subtle text-danger me-1">Has Allergies</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
+          <button class="btn btn-outline-primary btn-sm w-100" onclick="generateFamilyMealPlan({{ member.id }}, '{{ member.name }}')">
+            <i class="bi bi-calendar-week"></i> Generate Meal Plan
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-6 text-muted" id="emptyFamily">
+    <i class="bi bi-people display-4 d-block mb-3 opacity-25"></i>
+    <h5>No family members yet</h5>
+    <p>Add family members to generate personalized meal plans for your whole household.</p>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+      <i class="bi bi-person-plus"></i> Add First Member
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Family Meal Plan Result Modal -->
+<div class="modal fade" id="familyMealPlanModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-semibold" id="familyMealPlanTitle">Meal Plan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="familyMealPlanResult" class="markdown-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Member Modal -->
+<div class="modal fade" id="addMemberModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-person-plus text-primary"></i> Add Family Member</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-medium">Full Name *</label>
+            <input type="text" id="memberName" class="form-control" placeholder="e.g. Priya" required />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium">Relationship</label>
+            <select id="memberRelationship" class="form-select">
+              <option value="">Select relationship</option>
+              <option value="spouse">💑 Spouse / Partner</option>
+              <option value="child">👶 Child</option>
+              <option value="parent">👴 Parent</option>
+              <option value="sibling">🧑 Sibling</option>
+              <option value="other">👤 Other</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-medium">Age</label>
+            <input type="number" id="memberAge" class="form-control" placeholder="25" min="1" max="120" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-medium">Gender</label>
+            <select id="memberGender" class="form-select">
+              <option value="">Select</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-medium">Activity Level</label>
+            <select id="memberActivity" class="form-select">
+              <option value="">Select</option>
+              <option value="sedentary">Sedentary</option>
+              <option value="lightly_active">Lightly Active</option>
+              <option value="moderately_active">Moderately Active</option>
+              <option value="very_active">Very Active</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-medium">Height (cm)</label>
+            <input type="number" id="memberHeight" class="form-control" placeholder="165" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-medium">Weight (kg)</label>
+            <input type="number" id="memberWeight" class="form-control" placeholder="65" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-medium">Fitness Goal</label>
+            <select id="memberGoal" class="form-select">
+              <option value="">Select goal</option>
+              <option value="weight_loss">Lose Weight</option>
+              <option value="weight_gain">Gain Weight</option>
+              <option value="muscle_gain">Build Muscle</option>
+              <option value="maintain">Maintain</option>
+              <option value="general_health">General Health</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium">Dietary Preference</label>
+            <select id="memberDiet" class="form-select">
+              <option value="">No preference</option>
+              <option value="vegetarian">Vegetarian</option>
+              <option value="vegan">Vegan</option>
+              <option value="eggetarian">Eggetarian</option>
+              <option value="non_vegetarian">Non-Vegetarian</option>
+              <option value="jain">Jain</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium">Allergies (comma-separated)</label>
+            <input type="text" id="memberAllergies" class="form-control" placeholder="e.g. peanuts, dairy" />
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-medium">Medical Conditions (comma-separated)</label>
+            <input type="text" id="memberConditions" class="form-control" placeholder="e.g. diabetes, asthma" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="addFamilyMember()">
+          <i class="bi bi-person-plus"></i> Add Member
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addFamilyMember() {
+  const name = document.getElementById('memberName').value.trim();
+  if (!name) { showToast('Name is required', 'danger'); return; }
+
+  const allergiesRaw = document.getElementById('memberAllergies').value;
+  const conditionsRaw = document.getElementById('memberConditions').value;
+
+  const payload = {
+    name, relationship: document.getElementById('memberRelationship').value,
+    age: parseInt(document.getElementById('memberAge').value) || null,
+    gender: document.getElementById('memberGender').value || null,
+    height_cm: parseFloat(document.getElementById('memberHeight').value) || null,
+    weight_kg: parseFloat(document.getElementById('memberWeight').value) || null,
+    dietary_preference: document.getElementById('memberDiet').value || null,
+    fitness_goal: document.getElementById('memberGoal').value || null,
+    activity_level: document.getElementById('memberActivity').value || null,
+    allergies_list: allergiesRaw.split(',').map(s => s.trim()).filter(Boolean),
+    conditions_list: conditionsRaw.split(',').map(s => s.trim()).filter(Boolean),
+  };
+
+  const res = await fetch('/api/family', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.ok) {
+    showToast('Family member added!', 'success');
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    const err = await res.json();
+    showToast(err.error || 'Failed to add member', 'danger');
+  }
+}
+
+async function deleteMember(id) {
+  if (!confirm('Remove this family member?')) return;
+  const res = await fetch(`/api/family/${id}`, { method: 'DELETE' });
+  if (res.ok) {
+    document.getElementById(`member-card-${id}`)?.remove();
+    showToast('Member removed', 'info');
+  }
+}
+
+async function generateFamilyMealPlan(id, name) {
+  document.getElementById('familyMealPlanTitle').textContent = `Meal Plan for ${name}`;
+  document.getElementById('familyMealPlanResult').innerHTML =
+    '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Generating meal plan with AI...</p></div>';
+  const modal = new bootstrap.Modal(document.getElementById('familyMealPlanModal'));
+  modal.show();
+
+  const res = await fetch(`/api/family/${id}/meal-plan`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ days: 3 })
+  });
+  const data = await res.json();
+  document.getElementById('familyMealPlanResult').innerHTML =
+    marked.parse(data.meal_plan || 'Failed to generate plan.');
+}
+</script>
+{% endblock %}

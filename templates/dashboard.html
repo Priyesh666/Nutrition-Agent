@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — NutriGuide{% endblock %}
+{% block head_extra %}
+<meta name="week-data" content="{{ week_data }}" />
+<meta name="meal-breakdown" content="{{ meal_breakdown }}" />
+{% endblock %}
+
+{% block content %}
+<div class="container-xl py-4">
+
+  <!-- Header Row -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-2">
+    <div>
+      <h2 class="fw-bold mb-0">Good {{ 'Morning' if now().hour < 12 else ('Afternoon' if now().hour < 17 else 'Evening') }}, {{ current_user.username }}! 👋</h2>
+      <p class="text-muted small mb-0">{{ now().strftime('%A, %d %B %Y') if now else '' }}</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('main.chat') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-chat-dots"></i> Ask NutriGuide
+      </a>
+      <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#addFoodModal">
+        <i class="bi bi-plus-circle"></i> Log Food
+      </button>
+    </div>
+  </div>
+
+  <!-- AI Daily Tip -->
+  <div class="tip-banner mb-4" id="dailyTipBanner">
+    <i class="bi bi-lightbulb-fill text-warning fs-5"></i>
+    <div>
+      <strong>Daily Tip</strong>
+      <p class="mb-0 small" id="dailyTipText">Loading your personalized tip...</p>
+    </div>
+    <button class="btn btn-sm btn-link text-muted ms-auto" onclick="loadDailyTip()" title="New tip">
+      <i class="bi bi-arrow-clockwise"></i>
+    </button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="row g-3 mb-4">
+    <!-- Calories -->
+    <div class="col-6 col-md-3">
+      <div class="summary-card">
+        <div class="summary-icon bg-primary-subtle text-primary">
+          <i class="bi bi-fire"></i>
+        </div>
+        <div>
+          <div class="summary-value">{{ total_calories }}</div>
+          <div class="summary-label">kcal today</div>
+          {% if profile and profile.daily_calorie_target %}
+          <div class="summary-sub">/ {{ profile.daily_calorie_target }} target</div>
+          {% endif %}
+        </div>
+        {% if profile and profile.daily_calorie_target %}
+        <div class="summary-progress">
+          <div class="progress-fill" style="width: {{ [((total_calories / profile.daily_calorie_target) * 100)|int, 100]|min }}%;
+               background: {{ '#2ecc71' if total_calories <= profile.daily_calorie_target else '#e74c3c' }}"></div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Protein -->
+    <div class="col-6 col-md-3">
+      <div class="summary-card">
+        <div class="summary-icon bg-success-subtle text-success">
+          <i class="bi bi-egg-fried"></i>
+        </div>
+        <div>
+          <div class="summary-value">{{ total_protein }}g</div>
+          <div class="summary-label">Protein</div>
+          {% if profile and profile.daily_protein_target %}
+          <div class="summary-sub">/ {{ profile.daily_protein_target }}g target</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Carbs -->
+    <div class="col-6 col-md-3">
+      <div class="summary-card">
+        <div class="summary-icon bg-warning-subtle text-warning">
+          <i class="bi bi-grain"></i>
+        </div>
+        <div>
+          <div class="summary-value">{{ total_carbs }}g</div>
+          <div class="summary-label">Carbohydrates</div>
+          {% if profile and profile.daily_carb_target %}
+          <div class="summary-sub">/ {{ profile.daily_carb_target }}g target</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Water -->
+    <div class="col-6 col-md-3">
+      <div class="summary-card" id="waterSummaryCard">
+        <div class="summary-icon bg-info-subtle text-info">
+          <i class="bi bi-droplet-fill"></i>
+        </div>
+        <div>
+          <div class="summary-value" id="waterDisplayMl">{{ total_water_ml }}</div>
+          <div class="summary-label">ml water</div>
+          {% if profile %}
+          <div class="summary-sub">/ {{ (profile.daily_water_target or 2.5) * 1000 | int }} ml target</div>
+          {% endif %}
+        </div>
+        <button class="btn btn-link text-info p-0 ms-auto" data-bs-toggle="modal" data-bs-target="#waterModal"
+                title="Log water">
+          <i class="bi bi-plus-circle-fill fs-5"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-transparent border-0 pb-0">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-bar-chart-fill text-primary"></i> Calorie Trend (Last 7 Days)</h6>
+        </div>
+        <div class="card-body">
+          <canvas id="weeklyCalorieChart" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-transparent border-0 pb-0">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-pie-chart-fill text-success"></i> Today's Meals</h6>
+        </div>
+        <div class="card-body d-flex align-items-center justify-content-center">
+          <canvas id="mealBreakdownChart" height="180"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Today's Food Log & Quick Actions -->
+  <div class="row g-3">
+    <!-- Food Log -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+          <h6 class="fw-semibold mb-0"><i class="bi bi-journal-text text-primary"></i> Today's Food Log</h6>
+          <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addFoodModal">
+            <i class="bi bi-plus"></i> Add Food
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div id="foodLogContainer">
+            {% if today_logs %}
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th class="ps-3">Food</th>
+                    <th>Meal</th>
+                    <th>Qty</th>
+                    <th>Cal</th>
+                    <th>P/C/F</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="foodLogTable">
+                  {% for log in today_logs %}
+                  <tr id="log-row-{{ log.id }}">
+                    <td class="ps-3 fw-medium">{{ log.food_name }}</td>
+                    <td><span class="badge meal-badge-{{ log.meal_type or 'snack' }}">{{ (log.meal_type or 'snack').title() }}</span></td>
+                    <td class="text-muted small">{{ log.quantity }}</td>
+                    <td class="fw-semibold">{{ log.calories|int }}</td>
+                    <td class="text-muted small">{{ log.protein|int }}g / {{ log.carbs|int }}g / {{ log.fat|int }}g</td>
+                    <td>
+                      <button class="btn btn-link btn-sm text-danger p-0"
+                              onclick="deleteCalorieLog({{ log.id }})">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted" id="emptyFoodLog">
+              <i class="bi bi-journal-x display-6 d-block mb-2"></i>
+              No meals logged today. <a href="#" data-bs-toggle="modal" data-bs-target="#addFoodModal">Add your first meal →</a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-transparent border-0 pb-0">
+          <h6 class="fw-semibold"><i class="bi bi-lightning-fill text-warning"></i> Quick Actions</h6>
+        </div>
+        <div class="card-body d-grid gap-2">
+          <a href="{{ url_for('main.chat') }}?q=Generate+a+meal+plan+for+today"
+             class="btn btn-outline-primary btn-sm text-start">
+            <i class="bi bi-calendar-check me-2"></i>Generate Today's Meal Plan
+          </a>
+          <button class="btn btn-outline-success btn-sm text-start" data-bs-toggle="modal" data-bs-target="#recipeModal">
+            <i class="bi bi-egg-fried me-2"></i>AI Recipe Generator
+          </button>
+          <button class="btn btn-outline-info btn-sm text-start" data-bs-toggle="modal" data-bs-target="#groceryModal">
+            <i class="bi bi-bag-check me-2"></i>Generate Grocery List
+          </button>
+          <a href="{{ url_for('main.bmi_calculator') }}" class="btn btn-outline-secondary btn-sm text-start">
+            <i class="bi bi-calculator me-2"></i>BMI Calculator
+          </a>
+          <button class="btn btn-outline-warning btn-sm text-start" data-bs-toggle="modal" data-bs-target="#imageUploadModal">
+            <i class="bi bi-camera me-2"></i>Analyze Food Photo
+          </button>
+        </div>
+      </div>
+
+      <!-- Profile Summary -->
+      {% if profile and profile.bmi %}
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent border-0 pb-0">
+          <h6 class="fw-semibold"><i class="bi bi-person-check text-success"></i> My Stats</h6>
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted small">BMI</span>
+            <span class="fw-semibold">{{ profile.bmi }}
+              <span class="badge bg-{{ 'success' if profile.bmi < 25 else ('warning' if profile.bmi < 30 else 'danger') }} ms-1">
+                {{ profile.bmi_category }}
+              </span>
+            </span>
+          </div>
+          {% if profile.daily_calorie_target %}
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Daily Target</span>
+            <span class="fw-semibold">{{ profile.daily_calorie_target }} kcal</span>
+          </div>
+          {% endif %}
+          {% if profile.fitness_goal %}
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Goal</span>
+            <span class="badge bg-primary-subtle text-primary">{{ profile.fitness_goal.replace('_', ' ').title() }}</span>
+          </div>
+          {% endif %}
+          {% if profile.dietary_preference %}
+          <div class="d-flex justify-content-between">
+            <span class="text-muted small">Diet</span>
+            <span class="badge bg-success-subtle text-success">{{ profile.dietary_preference.replace('_', ' ').title() }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <div class="card border-0 shadow-sm bg-warning-subtle">
+        <div class="card-body text-center py-3">
+          <i class="bi bi-person-exclamation text-warning fs-3 d-block mb-2"></i>
+          <p class="small mb-2">Complete your health profile for personalized recommendations.</p>
+          <a href="{{ url_for('main.profile') }}" class="btn btn-warning btn-sm">Set Up Profile</a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Add Food Modal -->
+<div class="modal fade" id="addFoodModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-plus-circle text-primary"></i> Log Food</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-medium">Food Name *</label>
+            <input type="text" id="foodName" class="form-control" placeholder="e.g. Dal Rice, Idli, Apple" required />
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-medium">Meal Type</label>
+            <select id="mealType" class="form-select">
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+              <option value="snack" selected>Snack</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-medium">Quantity</label>
+            <input type="text" id="foodQuantity" class="form-control" placeholder="e.g. 1 cup, 200g" />
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-medium">Calories (kcal)</label>
+            <input type="number" id="foodCalories" class="form-control" placeholder="0" min="0" />
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-medium">Protein (g)</label>
+            <input type="number" id="foodProtein" class="form-control" placeholder="0" min="0" step="0.1" />
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-medium">Carbs (g)</label>
+            <input type="number" id="foodCarbs" class="form-control" placeholder="0" min="0" step="0.1" />
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-medium">Fat (g)</label>
+            <input type="number" id="foodFat" class="form-control" placeholder="0" min="0" step="0.1" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="logFood()">
+          <i class="bi bi-check-circle"></i> Log Food
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Water Log Modal -->
+<div class="modal fade" id="waterModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-droplet-fill text-info"></i> Log Water</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label fw-medium">Amount (ml)</label>
+        <div class="d-flex gap-2 mb-3">
+          <button class="btn btn-outline-info btn-sm flex-fill" onclick="setWaterAmount(150)">150ml</button>
+          <button class="btn btn-outline-info btn-sm flex-fill" onclick="setWaterAmount(250)">250ml</button>
+          <button class="btn btn-outline-info btn-sm flex-fill" onclick="setWaterAmount(500)">500ml</button>
+        </div>
+        <input type="number" id="waterAmount" class="form-control" placeholder="Amount in ml" value="250" min="1" />
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-info text-white" onclick="logWater()">
+          <i class="bi bi-droplet"></i> Log Water
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recipe Generator Modal -->
+<div class="modal fade" id="recipeModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-egg-fried text-success"></i> AI Recipe Generator</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label fw-medium">What ingredients do you have?</label>
+        <textarea id="recipeIngredients" class="form-control mb-3" rows="2"
+                  placeholder="e.g. paneer, spinach, tomatoes, onion, cumin, garam masala"></textarea>
+        <button class="btn btn-success w-100" onclick="generateRecipe()">
+          <i class="bi bi-magic"></i> Generate Recipe with AI
+        </button>
+        <div id="recipeResult" class="mt-3 markdown-content" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Grocery List Modal -->
+<div class="modal fade" id="groceryModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-bag-check text-warning"></i> Grocery List Generator</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label fw-medium">Days to plan</label>
+            <select id="groceryDays" class="form-select">
+              <option value="3">3 days</option>
+              <option value="7" selected>1 week</option>
+              <option value="14">2 weeks</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-warning w-100" onclick="generateGroceryList()">
+          <i class="bi bi-magic"></i> Generate Grocery List with AI
+        </button>
+        <div id="groceryResult" class="mt-3 markdown-content" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Image Upload Modal -->
+<div class="modal fade" id="imageUploadModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-semibold"><i class="bi bi-camera text-danger"></i> Analyze Food Photo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('foodImageInput').click()">
+          <i class="bi bi-cloud-upload fs-2 text-muted"></i>
+          <p class="text-muted mb-0 mt-2">Click to upload food photo<br/><small>JPG, PNG, WebP — Max 16MB</small></p>
+          <img id="imagePreview" class="img-fluid rounded mt-3" style="display:none; max-height:200px;" />
+        </div>
+        <input type="file" id="foodImageInput" accept="image/*" class="d-none" onchange="previewAndUpload(this)" />
+        <div id="imageAnalysisResult" class="mt-3 markdown-content" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

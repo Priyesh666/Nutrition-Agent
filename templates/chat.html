@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}AI Nutrition Chat — NutriGuide{% endblock %}
+
+{% block content %}
+<div class="chat-layout">
+  <!-- Sidebar -->
+  <div class="chat-sidebar">
+    <div class="chat-sidebar-header">
+      <h6 class="fw-bold mb-0"><i class="bi bi-robot text-primary"></i> NutriGuide AI</h6>
+      <span class="status-dot online" title="AI Ready"></span>
+    </div>
+
+    <div class="chat-sidebar-body">
+      <!-- Quick prompts -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Quick Prompts</div>
+        {% set prompts = [
+          ("bi-calendar-week", "7-Day Meal Plan", "Generate a personalized 7-day meal plan for me"),
+          ("bi-egg-fried", "Quick Recipe", "Suggest a healthy Indian recipe I can make in 30 minutes"),
+          ("bi-bag-check", "Grocery List", "Create a healthy grocery list for this week"),
+          ("bi-fire", "Calorie Check", "What are the calories in a typical Indian lunch?"),
+          ("bi-droplet-fill", "Water Reminder", "How much water should I drink daily?"),
+          ("bi-heart-pulse", "Health Tips", "Give me 5 nutrition tips for better energy throughout the day"),
+          ("bi-moon-stars", "Dinner Ideas", "Suggest light and healthy dinner options for tonight"),
+          ("bi-shield-check", "Food Safety", "Which foods should I avoid with diabetes?")
+        ] %}
+        {% for icon, label, prompt in prompts %}
+        <button class="quick-prompt-btn" onclick="sendQuickPrompt('{{ prompt }}')">
+          <i class="bi {{ icon }}"></i>
+          <span>{{ label }}</span>
+        </button>
+        {% endfor %}
+      </div>
+
+      <!-- User context -->
+      {% if profile and profile.bmi %}
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Your Profile</div>
+        <div class="profile-mini">
+          {% if profile.bmi %}
+          <div class="profile-mini-row">
+            <span>BMI</span><strong>{{ profile.bmi }} ({{ profile.bmi_category }})</strong>
+          </div>
+          {% endif %}
+          {% if profile.fitness_goal %}
+          <div class="profile-mini-row">
+            <span>Goal</span><strong>{{ profile.fitness_goal.replace('_', ' ').title() }}</strong>
+          </div>
+          {% endif %}
+          {% if profile.dietary_preference %}
+          <div class="profile-mini-row">
+            <span>Diet</span><strong>{{ profile.dietary_preference.replace('_', ' ').title() }}</strong>
+          </div>
+          {% endif %}
+          {% if profile.daily_calorie_target %}
+          <div class="profile-mini-row">
+            <span>Target</span><strong>{{ profile.daily_calorie_target }} kcal</strong>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="chat-sidebar-footer">
+      <button class="btn btn-sm btn-outline-danger w-100" onclick="clearChatHistory()">
+        <i class="bi bi-trash"></i> Clear History
+      </button>
+    </div>
+  </div>
+
+  <!-- Chat Area -->
+  <div class="chat-main">
+    <div class="chat-header">
+      <div class="d-flex align-items-center gap-2">
+        <div class="ai-avatar"><span>🥗</span></div>
+        <div>
+          <h6 class="fw-bold mb-0">NutriGuide</h6>
+          <span class="text-muted small">IBM watsonx.ai Granite · Nutrition Expert</span>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="exportChat()" title="Export chat">
+          <i class="bi bi-download"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="clearChatHistory()" title="Clear chat">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="chatMessages">
+      {% if not messages %}
+      <div class="chat-welcome" id="chatWelcome">
+        <div class="welcome-icon">🥗</div>
+        <h5>Welcome to NutriGuide!</h5>
+        <p class="text-muted">I'm your personal AI nutrition assistant powered by IBM Granite AI. Ask me anything about nutrition, meal plans, recipes, or health.</p>
+        <div class="welcome-suggestions">
+          <button onclick="sendQuickPrompt('What should I eat for a healthy breakfast?')" class="suggestion-chip">
+            🍳 Healthy breakfast ideas
+          </button>
+          <button onclick="sendQuickPrompt('Create a 7-day weight loss meal plan')" class="suggestion-chip">
+            📅 7-day meal plan
+          </button>
+          <button onclick="sendQuickPrompt('How many calories do I need daily?')" class="suggestion-chip">
+            🔥 My calorie needs
+          </button>
+          <button onclick="sendQuickPrompt('Give me a healthy Indian dinner recipe')" class="suggestion-chip">
+            🍛 Indian dinner recipe
+          </button>
+        </div>
+      </div>
+      {% endif %}
+
+      {% for msg in messages %}
+      <div class="message message-{{ msg.role }}" id="msg-{{ msg.id }}">
+        {% if msg.role == 'assistant' %}
+        <div class="msg-avatar ai-avatar-sm"><span>🥗</span></div>
+        {% endif %}
+        <div class="msg-bubble">
+          <div class="msg-content markdown-content">{{ msg.content }}</div>
+          <div class="msg-time">{{ msg.timestamp.strftime('%H:%M') }}</div>
+        </div>
+        {% if msg.role == 'user' %}
+        <div class="msg-avatar user-avatar-sm">
+          <i class="bi bi-person-fill"></i>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      <!-- Typing indicator -->
+      <div class="message message-assistant d-none" id="typingIndicator">
+        <div class="msg-avatar ai-avatar-sm"><span>🥗</span></div>
+        <div class="msg-bubble">
+          <div class="typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="chat-input-area">
+      <!-- Voice input bar -->
+      <div class="voice-status d-none" id="voiceStatus">
+        <i class="bi bi-mic-fill text-danger"></i>
+        <span>Listening... speak now</span>
+        <button class="btn btn-sm btn-danger ms-auto" onclick="stopVoiceInput()">Stop</button>
+      </div>
+
+      <div class="chat-input-row">
+        <div class="chat-input-wrapper">
+          <!-- Image upload -->
+          <label class="input-action-btn" title="Upload food photo" for="chatImageInput">
+            <i class="bi bi-camera"></i>
+          </label>
+          <input type="file" id="chatImageInput" accept="image/*" class="d-none"
+                 onchange="analyzeFromChat(this)" />
+
+          <textarea id="chatInput" class="chat-textarea" rows="1"
+                    placeholder="Ask about nutrition, meal plans, recipes... (Shift+Enter for new line)"
+                    onkeydown="handleChatKeydown(event)"
+                    oninput="autoResizeTextarea(this)"></textarea>
+
+          <!-- Voice input button -->
+          <button class="input-action-btn" id="voiceBtn" onclick="toggleVoiceInput()" title="Voice input">
+            <i class="bi bi-mic"></i>
+          </button>
+        </div>
+        <button class="chat-send-btn" id="sendBtn" onclick="sendMessage()">
+          <i class="bi bi-send-fill"></i>
+        </button>
+      </div>
+      <div class="chat-input-hint">
+        <span><kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</span>
+        <span id="charCount" class="text-muted">0/2000</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{% endblock %}

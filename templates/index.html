@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}NutriGuide — AI Nutrition Assistant{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="container-xl">
+    <div class="row align-items-center min-vh-75 py-5">
+      <div class="col-lg-6 hero-text">
+        <div class="hero-badge mb-3">
+          <span><i class="bi bi-cpu-fill text-primary"></i> Powered by IBM watsonx.ai Granite</span>
+        </div>
+        <h1 class="hero-title">Your Personal<br/><span class="text-gradient">AI Nutrition</span><br/>Assistant</h1>
+        <p class="hero-desc">
+          Get personalized meal plans, track calories, calculate BMI, and receive intelligent
+          nutrition guidance — all powered by IBM Granite AI models. Built for Indian diets
+          and global wellness.
+        </p>
+        <div class="hero-actions">
+          <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg me-3">
+            <i class="bi bi-rocket-takeoff"></i> Start Free
+          </a>
+          <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary btn-lg">
+            <i class="bi bi-box-arrow-in-right"></i> Sign In
+          </a>
+        </div>
+        <div class="hero-stats mt-4">
+          <div class="stat-item">
+            <strong>AI-Powered</strong><span>Meal Plans</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <strong>Indian</strong><span>Food First</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <strong>IBM</strong><span>Granite AI</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6 hero-visual mt-5 mt-lg-0">
+        <div class="hero-card-stack">
+          <div class="floating-card card-1">
+            <i class="bi bi-chat-dots-fill text-primary fs-4"></i>
+            <div>
+              <strong>AI Chat</strong>
+              <small>Ask anything about nutrition</small>
+            </div>
+          </div>
+          <div class="floating-card card-2">
+            <i class="bi bi-graph-up-arrow text-success fs-4"></i>
+            <div>
+              <strong>Smart Tracking</strong>
+              <small>Calories, macros & water</small>
+            </div>
+          </div>
+          <div class="floating-card card-3">
+            <i class="bi bi-people-fill text-warning fs-4"></i>
+            <div>
+              <strong>Family Profiles</strong>
+              <small>Manage whole family's nutrition</small>
+            </div>
+          </div>
+          <div class="hero-center-visual">
+            <div class="center-circle">
+              <span class="display-1">🥗</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features Section -->
+<section class="features-section py-6">
+  <div class="container-xl">
+    <div class="text-center mb-5">
+      <h2 class="section-title">Everything You Need for <span class="text-gradient">Optimal Nutrition</span></h2>
+      <p class="section-desc text-muted">Comprehensive AI-powered tools to transform your health journey</p>
+    </div>
+    <div class="row g-4">
+      {% set features = [
+        ("bi-robot", "primary", "AI Nutrition Chat", "Chat with IBM Granite AI for personalized meal plans, recipe suggestions, and nutrition guidance tailored to your health goals."),
+        ("bi-calculator", "success", "BMI & Calorie Calculator", "Calculate your BMI, daily calorie needs (TDEE), and optimal macro split based on your body metrics and activity level."),
+        ("bi-bar-chart-fill", "info", "Nutrition Dashboard", "Visualize your daily calorie intake, macro breakdown, water consumption, and weekly trends with interactive charts."),
+        ("bi-droplet-fill", "cyan", "Water Intake Tracker", "Track your daily hydration with smart reminders. Get personalized water intake recommendations based on your weight."),
+        ("bi-journal-richtext", "warning", "Meal Plan Generator", "Get 7-day personalized meal plans featuring Indian and global cuisines, with full nutritional breakdown and shopping lists."),
+        ("bi-camera", "danger", "Food Image Analysis", "Upload food photos for AI-powered nutrition analysis. (Vision AI integration coming soon with IBM multimodal models.)"),
+        ("bi-bag-check-fill", "purple", "Grocery List Builder", "Auto-generate organized weekly grocery lists from your meal plans with quantity estimates and budget-friendly tips."),
+        ("bi-people-fill", "orange", "Family Profiles", "Manage nutrition profiles for your entire family. Generate personalized meal plans for each member based on their unique needs.")
+      ] %}
+      {% for icon, color, title, desc in features %}
+      <div class="col-md-6 col-lg-3">
+        <div class="feature-card h-100">
+          <div class="feature-icon feature-icon-{{ color }}">
+            <i class="bi {{ icon }}"></i>
+          </div>
+          <h5 class="mt-3 mb-2">{{ title }}</h5>
+          <p class="text-muted small mb-0">{{ desc }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="howto-section py-6 bg-light-subtle">
+  <div class="container-xl">
+    <div class="text-center mb-5">
+      <h2 class="section-title">Get Started in <span class="text-gradient">3 Simple Steps</span></h2>
+    </div>
+    <div class="row g-4 justify-content-center">
+      <div class="col-md-4">
+        <div class="step-card text-center">
+          <div class="step-num">1</div>
+          <h5>Create Your Profile</h5>
+          <p class="text-muted">Enter your age, weight, height, dietary preferences, allergies, and health goals.</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="step-card text-center">
+          <div class="step-num">2</div>
+          <h5>Chat with AI</h5>
+          <p class="text-muted">Ask NutriGuide anything — meal plans, recipes, calorie queries, or nutrition advice.</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="step-card text-center">
+          <div class="step-num">3</div>
+          <h5>Track & Improve</h5>
+          <p class="text-muted">Log meals, track water intake, monitor progress with charts, and adapt your plan.</p>
+        </div>
+      </div>
+    </div>
+    <div class="text-center mt-5">
+      <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg px-5">
+        <i class="bi bi-arrow-right-circle"></i> Start Your Journey
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}
